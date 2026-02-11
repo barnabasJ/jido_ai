@@ -309,7 +309,7 @@ defmodule Jido.AI.Helpers do
         %{type: :thinking} -> true
         _ -> false
       end)
-      |> Enum.map_join("\n\n", & &1.thinking)
+      |> Enum.map_join("\n\n", &(Map.get(&1, :thinking) || Map.get(&1, :text, "")))
 
     if result == "", do: nil, else: result
   end

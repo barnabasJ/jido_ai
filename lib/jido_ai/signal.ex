@@ -780,7 +780,7 @@ defmodule Jido.AI.Signal do
     thinking =
       content
       |> Enum.filter(&match?(%{type: :thinking}, &1))
-      |> Enum.map_join("", & &1.thinking)
+      |> Enum.map_join("", &(Map.get(&1, :thinking) || Map.get(&1, :text, "")))
 
     if thinking != "", do: thinking
   end
