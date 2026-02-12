@@ -532,9 +532,36 @@ defmodule Jido.AI.Strategies.ReAct do
   end
 
   defp convert_to_reqllm_context(conversation) do
-    {:ok, context} = Context.normalize(conversation, validate: false)
-    Context.to_list(context)
+    case Context.normalize(conversation, validate: false) do
+      {:ok, context} ->
+        Context.to_list(context)
+
+      {:error, _reason} ->
+        # Thread.to_messages may return assistant messages with thinking content
+        # as lists (e.g. [%{type: :thinking, ...}, %{type: :text, ...}]) which
+        # Context.normalize can't handle. Flatten to plain text and retry.
+        sanitized = Enum.map(conversation, &flatten_thinking_content/1)
+        {:ok, context} = Context.normalize(sanitized, validate: false)
+        Context.to_list(context)
+    end
   end
+
+  defp flatten_thinking_content(%{content: content} = msg) when is_list(content) do
+    text =
+      content
+      |> Enum.filter(fn
+        %{type: type} when type in [:text, "text"] -> true
+        _ -> false
+      end)
+      |> Enum.map_join("", fn
+        %{text: t} when is_binary(t) -> t
+        _ -> ""
+      end)
+
+    %{msg | content: text}
+  end
+
+  defp flatten_thinking_content(msg), do: msg
 
   defp thread_id_from_state(state) when is_map(state) do
     case Map.get(state, :thread) do
