@@ -99,7 +99,8 @@ defmodule Jido.AI.Strategies.ReAct do
           system_prompt: String.t(),
           model: String.t(),
           max_iterations: pos_integer(),
-          base_tool_context: map()
+          base_tool_context: map(),
+          timeout: pos_integer() | nil
         }
 
   @default_model "anthropic:claude-haiku-4-5"
@@ -456,7 +457,8 @@ defmodule Jido.AI.Strategies.ReAct do
       model: model,
       reqllm_tools: reqllm_tools,
       actions_by_name: actions_by_name,
-      base_tool_context: base_tool_context
+      base_tool_context: base_tool_context,
+      timeout: timeout
     } = config
 
     # Merge base (persistent) + run (ephemeral) context at directive emission time
@@ -473,7 +475,8 @@ defmodule Jido.AI.Strategies.ReAct do
             id: id,
             model: model,
             context: convert_to_reqllm_context(conversation),
-            tools: reqllm_tools
+            tools: reqllm_tools,
+            timeout: timeout
           })
         ]
 
@@ -549,9 +552,7 @@ defmodule Jido.AI.Strategies.ReAct do
           {:error, reason} ->
             require Logger
 
-            Logger.warning(
-              "[ReAct] convert_to_reqllm_context sanitization failed: #{inspect(reason)}"
-            )
+            Logger.warning("[ReAct] convert_to_reqllm_context sanitization failed: #{inspect(reason)}")
 
             sanitized
         end
@@ -613,8 +614,8 @@ defmodule Jido.AI.Strategies.ReAct do
       max_iterations: Keyword.get(opts, :max_iterations, @default_max_iterations),
       # base_tool_context is the persistent context from agent definition
       # per-request context is stored separately in state[:run_tool_context]
-      base_tool_context:
-        Map.get(agent.state, :tool_context) || Keyword.get(opts, :tool_context, %{})
+      base_tool_context: Map.get(agent.state, :tool_context) || Keyword.get(opts, :tool_context, %{}),
+      timeout: Keyword.get(opts, :timeout)
     }
   end
 
