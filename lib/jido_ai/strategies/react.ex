@@ -541,8 +541,20 @@ defmodule Jido.AI.Strategies.ReAct do
         # as lists (e.g. [%{type: :thinking, ...}, %{type: :text, ...}]) which
         # Context.normalize can't handle. Flatten to plain text and retry.
         sanitized = Enum.map(conversation, &flatten_thinking_content/1)
-        {:ok, context} = Context.normalize(sanitized, validate: false)
-        Context.to_list(context)
+
+        case Context.normalize(sanitized, validate: false) do
+          {:ok, context} ->
+            Context.to_list(context)
+
+          {:error, reason} ->
+            require Logger
+
+            Logger.warning(
+              "[ReAct] convert_to_reqllm_context sanitization failed: #{inspect(reason)}"
+            )
+
+            sanitized
+        end
     end
   end
 
@@ -601,7 +613,8 @@ defmodule Jido.AI.Strategies.ReAct do
       max_iterations: Keyword.get(opts, :max_iterations, @default_max_iterations),
       # base_tool_context is the persistent context from agent definition
       # per-request context is stored separately in state[:run_tool_context]
-      base_tool_context: Map.get(agent.state, :tool_context) || Keyword.get(opts, :tool_context, %{})
+      base_tool_context:
+        Map.get(agent.state, :tool_context) || Keyword.get(opts, :tool_context, %{})
     }
   end
 
