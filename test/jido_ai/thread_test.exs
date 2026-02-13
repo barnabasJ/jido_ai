@@ -3,6 +3,8 @@ defmodule Jido.AI.ThreadTest do
 
   alias Jido.AI.Thread
   alias Jido.AI.Thread.Entry
+  alias ReqLLM.Message
+  alias ReqLLM.Message.ContentPart
 
   # ============================================================================
   # Thread Creation
@@ -250,18 +252,17 @@ defmodule Jido.AI.ThreadTest do
       assert messages == []
     end
 
-    test "projects assistant message with thinking as content blocks" do
+    test "projects assistant message with thinking as Message with ContentPart structs" do
       thread =
         Thread.new()
         |> Thread.append_assistant("The answer is 42.", nil, thinking: "Let me reason about this...")
 
       [message] = Thread.to_messages(thread)
 
-      assert message.role == :assistant
-      assert is_list(message.content)
-      assert [thinking_block, text_block] = message.content
-      assert thinking_block == %{type: :thinking, thinking: "Let me reason about this..."}
-      assert text_block == %{type: :text, text: "The answer is 42."}
+      assert %Message{role: :assistant, content: content} = message
+      assert [thinking_part, text_part] = content
+      assert %ContentPart{type: :thinking, text: "Let me reason about this..."} = thinking_part
+      assert %ContentPart{type: :text, text: "The answer is 42."} = text_part
     end
 
     test "projects assistant message without thinking as plain string" do
@@ -482,12 +483,10 @@ defmodule Jido.AI.ThreadTest do
 
       projected = Thread.to_messages(thread)
       [msg] = projected
-      assert is_list(msg.content)
-
-      assert [
-               %{type: :thinking, thinking: "Step 1: analyze the problem"},
-               %{type: :text, text: "Here is my answer"}
-             ] = msg.content
+      assert %Message{role: :assistant, content: content} = msg
+      assert [thinking_part, text_part] = content
+      assert %ContentPart{type: :thinking, text: "Step 1: analyze the problem"} = thinking_part
+      assert %ContentPart{type: :text, text: "Here is my answer"} = text_part
     end
 
     test "handles messages with string type keys" do
@@ -518,6 +517,67 @@ defmodule Jido.AI.ThreadTest do
       [entry] = thread.entries
       assert entry.content == "Just a plain message"
       assert entry.thinking == nil
+    end
+  end
+
+  # ============================================================================
+  # Context.normalize Compatibility
+  # ============================================================================
+
+  describe "Context.normalize compatibility" do
+    test "to_messages with thinking content survives Context.normalize" do
+      thread =
+        Thread.new()
+        |> Thread.append_user("Hello")
+        |> Thread.append_assistant("Reply", nil, thinking: "Let me think...")
+        |> Thread.append_user("Follow-up")
+
+      messages = Thread.to_messages(thread)
+      assert {:ok, _context} = ReqLLM.Context.normalize(messages, validate: false)
+    end
+
+    test "to_messages without thinking survives Context.normalize" do
+      thread =
+        Thread.new()
+        |> Thread.append_user("Hello")
+        |> Thread.append_assistant("Reply")
+        |> Thread.append_user("Follow-up")
+
+      messages = Thread.to_messages(thread)
+      assert {:ok, _context} = ReqLLM.Context.normalize(messages, validate: false)
+    end
+
+    test "multi-turn with thinking on every assistant turn survives Context.normalize" do
+      thread =
+        Thread.new()
+        |> Thread.append_user("Turn 1")
+        |> Thread.append_assistant("Reply 1", nil, thinking: "Thinking 1")
+        |> Thread.append_user("Turn 2")
+        |> Thread.append_assistant("Reply 2", nil, thinking: "Thinking 2")
+        |> Thread.append_user("Turn 3")
+
+      messages = Thread.to_messages(thread)
+      assert {:ok, context} = ReqLLM.Context.normalize(messages, validate: false)
+      assert length(context.messages) == 5
+    end
+
+    test "assistant with tool_calls and thinking survives Context.normalize" do
+      tool_calls = [%{id: "tc_1", name: "calc", arguments: %{x: 1}}]
+
+      thread =
+        Thread.new()
+        |> Thread.append_user("What is 1+1?")
+        |> Thread.append_assistant("", tool_calls, thinking: "I need to calculate")
+        |> Thread.append_tool_result("tc_1", "calc", "2")
+        |> Thread.append_assistant("The answer is 2.")
+
+      messages = Thread.to_messages(thread)
+
+      # The assistant message with thinking+tool_calls should be a Message struct
+      assistant_msg = Enum.at(messages, 1)
+      assert %Message{role: :assistant, tool_calls: ^tool_calls} = assistant_msg
+
+      assert {:ok, _context} = ReqLLM.Context.normalize(messages, validate: false)
     end
   end
 

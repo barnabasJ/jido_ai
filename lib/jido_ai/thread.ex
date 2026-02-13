@@ -30,6 +30,8 @@ defmodule Jido.AI.Thread do
   """
 
   alias __MODULE__.Entry
+  alias ReqLLM.Message
+  alias ReqLLM.Message.ContentPart
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -342,12 +344,25 @@ defmodule Jido.AI.Thread do
     %{role: :user, content: content}
   end
 
-  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: thinking, tool_calls: nil}) do
-    %{role: :assistant, content: build_assistant_content(content, thinking)}
+  # When thinking is present, produce a %Message{} struct so Context.normalize
+  # passes it through directly (bypassing convert_loose_map which can't handle
+  # content lists without tool_calls).
+  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: thinking, tool_calls: nil})
+       when is_binary(thinking) and thinking != "" do
+    %Message{role: :assistant, content: build_assistant_content(content, thinking)}
   end
 
-  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: thinking, tool_calls: tool_calls}) do
-    %{role: :assistant, content: build_assistant_content(content || "", thinking), tool_calls: tool_calls}
+  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: _thinking, tool_calls: nil}) do
+    %{role: :assistant, content: content}
+  end
+
+  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: thinking, tool_calls: tool_calls})
+       when is_binary(thinking) and thinking != "" do
+    %Message{role: :assistant, content: build_assistant_content(content || "", thinking), tool_calls: tool_calls}
+  end
+
+  defp entry_to_message(%Entry{role: :assistant, content: content, thinking: _thinking, tool_calls: tool_calls}) do
+    %{role: :assistant, content: content || "", tool_calls: tool_calls}
   end
 
   defp entry_to_message(%Entry{role: :tool, tool_call_id: id, name: name, content: content}) do
@@ -358,13 +373,10 @@ defmodule Jido.AI.Thread do
     %{role: :system, content: content}
   end
 
-  defp build_assistant_content(content, nil), do: content
-  defp build_assistant_content(content, ""), do: content
-
-  defp build_assistant_content(content, thinking) when is_binary(thinking) do
+  defp build_assistant_content(content, thinking) when is_binary(thinking) and thinking != "" do
     [
-      %{type: :thinking, thinking: thinking},
-      %{type: :text, text: content || ""}
+      ContentPart.thinking(thinking),
+      ContentPart.text(content || "")
     ]
   end
 
