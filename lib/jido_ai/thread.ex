@@ -358,7 +358,11 @@ defmodule Jido.AI.Thread do
 
   defp entry_to_message(%Entry{role: :assistant, content: content, thinking: thinking, tool_calls: tool_calls})
        when is_binary(thinking) and thinking != "" do
-    %Message{role: :assistant, content: build_assistant_content(content || "", thinking), tool_calls: tool_calls}
+    %Message{
+      role: :assistant,
+      content: build_assistant_content(content || "", thinking),
+      tool_calls: normalize_entry_tool_calls(tool_calls)
+    }
   end
 
   defp entry_to_message(%Entry{role: :assistant, content: content, thinking: _thinking, tool_calls: tool_calls}) do
@@ -379,6 +383,29 @@ defmodule Jido.AI.Thread do
       ContentPart.text(content || "")
     ]
   end
+
+  # Converts plain-map tool_calls from Thread entries into ReqLLM.ToolCall structs.
+  # Entries bypass Context.normalize (to preserve ContentPart lists), so tool_calls
+  # must be normalized here to include the required `type: "function"` field.
+  defp normalize_entry_tool_calls(nil), do: nil
+  defp normalize_entry_tool_calls([]), do: nil
+
+  defp normalize_entry_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, fn
+      %ReqLLM.ToolCall{} = tc ->
+        tc
+
+      %{id: id, name: name, arguments: args} ->
+        ReqLLM.ToolCall.new(id, name, ensure_json_string(args))
+
+      %{name: name, arguments: args} = m ->
+        ReqLLM.ToolCall.new(Map.get(m, :id), name, ensure_json_string(args))
+    end)
+  end
+
+  defp ensure_json_string(args) when is_binary(args), do: args
+  defp ensure_json_string(args) when is_map(args), do: Jason.encode!(args)
+  defp ensure_json_string(args), do: Jason.encode!(args)
 
   defp message_to_entry(msg) when is_map(msg) do
     role = get_field(msg, :role, "role")
