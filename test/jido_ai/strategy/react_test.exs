@@ -87,11 +87,17 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       route_map = Map.new(routes)
 
       assert route_map["ai.react.query"] == {:strategy_cmd, :ai_react_start}
-      assert route_map["ai.react.set_system_prompt"] == {:strategy_cmd, :ai_react_set_system_prompt}
+
+      assert route_map["ai.react.set_system_prompt"] ==
+               {:strategy_cmd, :ai_react_set_system_prompt}
+
       refute Map.has_key?(route_map, "ai.react.set_context")
       assert route_map["ai.react.context.modify"] == {:strategy_cmd, :ai_react_context_modify}
       assert route_map["ai.react.worker.event"] == {:strategy_cmd, :ai_react_worker_event}
-      assert route_map["jido.agent.child.started"] == {:strategy_cmd, :ai_react_worker_child_started}
+
+      assert route_map["jido.agent.child.started"] ==
+               {:strategy_cmd, :ai_react_worker_child_started}
+
       assert route_map["jido.agent.child.exit"] == {:strategy_cmd, :ai_react_worker_child_exit}
 
       assert route_map["ai.llm.response"] == Jido.Actions.Control.Noop
@@ -104,7 +110,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
     test "start lazily spawns worker and stores deferred start payload" do
       agent = create_agent(tools: [TestCalculator])
 
-      start_instruction = instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_1"})
+      start_instruction =
+        instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_1"})
+
       {agent, directives} = ReAct.cmd(agent, [start_instruction], %{})
 
       assert [%AgentDirective.SpawnAgent{} = spawn] = directives
@@ -129,7 +137,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
         )
         |> then(fn agent -> %{agent | state: Map.put(agent.state, :custom_counter, 7)} end)
 
-      start_instruction = instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_ctx"})
+      start_instruction =
+        instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_ctx"})
+
       {agent, [_spawn]} = ReAct.cmd(agent, [start_instruction], %{})
 
       state = StratState.get(agent, %{})
@@ -145,7 +155,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
     test "start propagates streaming option into runtime config" do
       agent = create_agent(tools: [TestCalculator], streaming: false)
 
-      start_instruction = instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_1"})
+      start_instruction =
+        instruction(ReAct.start_action(), %{query: "What is 2 + 2?", request_id: "req_1"})
+
       {agent, [_spawn]} = ReAct.cmd(agent, [start_instruction], %{})
 
       state = StratState.get(agent, %{})
@@ -215,7 +227,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
         instruction(ReAct.start_action(), %{
           query: "What is 2 + 2?",
           request_id: "req_1",
-          llm_opts: %{"reasoning_effort" => :high, "top_p" => 0.9, "unknown_provider_flag" => true}
+          llm_opts: %{
+            "reasoning_effort" => :high,
+            "top_p" => 0.9,
+            "unknown_provider_flag" => true
+          }
         })
 
       {agent, [_spawn]} = ReAct.cmd(agent, [start_instruction], %{})
@@ -298,7 +314,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       agent = create_agent(tools: [TestCalculator])
 
       {agent, _spawn_directives} =
-        ReAct.cmd(agent, [instruction(ReAct.start_action(), %{query: "go", request_id: "req_child"})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.start_action(), %{query: "go", request_id: "req_child"})],
+          %{}
+        )
 
       child_started =
         instruction(:ai_react_worker_child_started, %{
@@ -329,7 +349,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       event = runtime_event(:request_started, "req_evt", 1, %{query: "hello"})
 
       {agent, []} =
-        ReAct.cmd(agent, [instruction(:ai_react_worker_event, %{request_id: "req_evt", event: event})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(:ai_react_worker_event, %{request_id: "req_evt", event: event})],
+          %{}
+        )
 
       state = StratState.get(agent, %{})
       assert state.status == :awaiting_llm
@@ -355,7 +379,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
 
       {agent, []} =
         Enum.reduce(events, {agent, []}, fn event, {acc, _} ->
-          ReAct.cmd(acc, [instruction(:ai_react_worker_event, %{request_id: "req_done", event: event})], %{})
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: "req_done", event: event})],
+            %{}
+          )
         end)
 
       state = StratState.get(agent, %{})
@@ -370,7 +398,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       agent = create_agent(tools: [TestCalculator])
 
       {agent, [_spawn]} =
-        ReAct.cmd(agent, [instruction(ReAct.start_action(), %{query: "Who am I?", request_id: "req_turn_1"})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.start_action(), %{query: "Who am I?", request_id: "req_turn_1"})],
+          %{}
+        )
 
       first_turn_events = [
         runtime_event(:request_started, "req_turn_1", 1, %{query: "Who am I?"}),
@@ -390,13 +422,22 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
 
       {agent, []} =
         Enum.reduce(first_turn_events, {agent, []}, fn event, {acc, _} ->
-          ReAct.cmd(acc, [instruction(:ai_react_worker_event, %{request_id: "req_turn_1", event: event})], %{})
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: "req_turn_1", event: event})],
+            %{}
+          )
         end)
 
       {agent, [_spawn]} =
         ReAct.cmd(
           agent,
-          [instruction(ReAct.start_action(), %{query: "What did I just ask?", request_id: "req_turn_2"})],
+          [
+            instruction(ReAct.start_action(), %{
+              query: "What did I just ask?",
+              request_id: "req_turn_2"
+            })
+          ],
           %{}
         )
 
@@ -415,7 +456,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       agent = create_agent(tools: [TestCalculator])
 
       {agent, [_spawn]} =
-        ReAct.cmd(agent, [instruction(ReAct.start_action(), %{query: "Track this", request_id: "req_snap"})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.start_action(), %{query: "Track this", request_id: "req_snap"})],
+          %{}
+        )
 
       events = [
         runtime_event(:request_started, "req_snap", 1, %{query: "Track this"}),
@@ -435,7 +480,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
 
       {agent, []} =
         Enum.reduce(events, {agent, []}, fn event, {acc, _} ->
-          ReAct.cmd(acc, [instruction(:ai_react_worker_event, %{request_id: "req_snap", event: event})], %{})
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: "req_snap", event: event})],
+            %{}
+          )
         end)
 
       snapshot = ReAct.snapshot(agent, %{})
@@ -493,14 +542,22 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
           termination_reason: :final_answer,
           usage: %{}
         }),
-        runtime_event(:checkpoint, "req_terminal_checkpoint", 3, %{token: "tok_terminal", reason: :terminal})
+        runtime_event(:checkpoint, "req_terminal_checkpoint", 3, %{
+          token: "tok_terminal",
+          reason: :terminal
+        })
       ]
 
       {agent, []} =
         Enum.reduce(events, {agent, []}, fn event, {acc, _} ->
           ReAct.cmd(
             acc,
-            [instruction(:ai_react_worker_event, %{request_id: "req_terminal_checkpoint", event: event})],
+            [
+              instruction(:ai_react_worker_event, %{
+                request_id: "req_terminal_checkpoint",
+                event: event
+              })
+            ],
             %{}
           )
         end)
@@ -576,7 +633,12 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       {agent, []} =
         Enum.reduce(1..2001, {agent, []}, fn seq, {acc, _} ->
           event = runtime_event(:llm_delta, request_id, seq, %{chunk_type: :content, delta: "x"})
-          ReAct.cmd(acc, [instruction(:ai_react_worker_event, %{request_id: request_id, event: event})], %{})
+
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: request_id, event: event})],
+            %{}
+          )
         end)
 
       state = StratState.get(agent, %{})
@@ -584,6 +646,98 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
 
       assert trace.truncated? == true
       assert length(trace.events) == 2000
+    end
+
+    test "out-of-order delta events are reordered by seq number" do
+      agent = create_agent(tools: [TestCalculator])
+      request_id = "req_reorder"
+
+      # Simulate 6 thinking deltas arriving out of order (pair-wise swaps)
+      # Correct order: "Hello " "world " "how " "are " "you " "today"
+      # Arrival order: seq 2, 1, 4, 3, 6, 5 (each pair swapped)
+      deltas = [
+        {2, "world "},
+        {1, "Hello "},
+        {4, "are "},
+        {3, "how "},
+        {6, "today"},
+        {5, "you "}
+      ]
+
+      {agent, _} =
+        Enum.reduce(deltas, {agent, []}, fn {seq, delta}, {acc, _} ->
+          event =
+            runtime_event(:llm_delta, request_id, seq, %{chunk_type: :thinking, delta: delta})
+
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: request_id, event: event})],
+            %{}
+          )
+        end)
+
+      state = StratState.get(agent, %{})
+
+      # All deltas should be concatenated in correct seq order
+      assert state.streaming_thinking == "Hello world how are you today"
+      # Buffer should be empty after all events processed
+      assert Map.get(state, :worker_event_buffer, %{}) == %{}
+      # Expected seq should be at 7 (next after 6)
+      assert Map.get(state, :expected_worker_seq) == 7
+    end
+
+    test "out-of-order content deltas produce correctly ordered streaming_text" do
+      agent = create_agent(tools: [TestCalculator])
+      request_id = "req_reorder_text"
+
+      # Send deltas 3, 1, 2 — should buffer 3, apply 1, then flush 2 and 3
+      deltas = [
+        {3, "C"},
+        {1, "A"},
+        {2, "B"}
+      ]
+
+      {agent, _} =
+        Enum.reduce(deltas, {agent, []}, fn {seq, delta}, {acc, _} ->
+          event =
+            runtime_event(:llm_delta, request_id, seq, %{chunk_type: :content, delta: delta})
+
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: request_id, event: event})],
+            %{}
+          )
+        end)
+
+      state = StratState.get(agent, %{})
+      assert state.streaming_text == "ABC"
+    end
+
+    test "duplicate seq events are dropped" do
+      agent = create_agent(tools: [TestCalculator])
+      request_id = "req_dup_seq"
+
+      # Send seq 1 twice — second should be dropped
+      events = [
+        {1, "first"},
+        {1, "duplicate"}
+      ]
+
+      {agent, _} =
+        Enum.reduce(events, {agent, []}, fn {seq, delta}, {acc, _} ->
+          event =
+            runtime_event(:llm_delta, request_id, seq, %{chunk_type: :thinking, delta: delta})
+
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: request_id, event: event})],
+            %{}
+          )
+        end)
+
+      state = StratState.get(agent, %{})
+      assert state.streaming_thinking == "first"
+      assert Map.get(state, :expected_worker_seq) == 2
     end
   end
 
@@ -593,7 +747,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       assert ReAct.list_tools(agent) == [TestCalculator]
 
       {agent, []} =
-        ReAct.cmd(agent, [instruction(ReAct.register_tool_action(), %{tool_module: TestSearch})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.register_tool_action(), %{tool_module: TestSearch})],
+          %{}
+        )
 
       tools = ReAct.list_tools(agent)
       assert TestCalculator in tools
@@ -604,7 +762,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       agent = create_agent(tools: [TestCalculator, TestSearch])
 
       {agent, []} =
-        ReAct.cmd(agent, [instruction(ReAct.unregister_tool_action(), %{tool_name: "search"})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.unregister_tool_action(), %{tool_name: "search"})],
+          %{}
+        )
 
       tools = ReAct.list_tools(agent)
       assert TestCalculator in tools
@@ -686,7 +848,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       {agent, [_spawn]} =
         ReAct.cmd(
           agent,
-          [instruction(ReAct.start_action(), %{query: "next turn", request_id: "req_nil_prompt"})],
+          [
+            instruction(ReAct.start_action(), %{query: "next turn", request_id: "req_nil_prompt"})
+          ],
           %{}
         )
 
@@ -702,7 +866,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       {agent, [_spawn]} =
         ReAct.cmd(
           agent,
-          [instruction(ReAct.start_action(), %{query: "Q1", request_id: "req_deferred_complete"})],
+          [
+            instruction(ReAct.start_action(), %{query: "Q1", request_id: "req_deferred_complete"})
+          ],
           %{}
         )
 
@@ -744,7 +910,12 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
         Enum.reduce(completion_events, {agent, []}, fn event, {acc, _} ->
           ReAct.cmd(
             acc,
-            [instruction(:ai_react_worker_event, %{request_id: "req_deferred_complete", event: event})],
+            [
+              instruction(:ai_react_worker_event, %{
+                request_id: "req_deferred_complete",
+                event: event
+              })
+            ],
             %{}
           )
         end)
@@ -791,7 +962,12 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       {agent, []} =
         ReAct.cmd(
           agent,
-          [instruction(:ai_react_worker_event, %{request_id: "req_deferred_failed", event: failed_event})],
+          [
+            instruction(:ai_react_worker_event, %{
+              request_id: "req_deferred_failed",
+              event: failed_event
+            })
+          ],
           %{}
         )
 
@@ -969,7 +1145,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       {agent, [_spawn]} =
         ReAct.cmd(
           agent,
-          [instruction(ReAct.start_action(), %{query: "calculate", request_id: "req_ai_message"})],
+          [
+            instruction(ReAct.start_action(), %{query: "calculate", request_id: "req_ai_message"})
+          ],
           %{}
         )
 
@@ -978,7 +1156,9 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
           turn_type: :tool_calls,
           text: "",
           thinking_content: nil,
-          tool_calls: [%{id: "tc_1", name: "calculator", arguments: %{operation: "add", a: 1, b: 2}}],
+          tool_calls: [
+            %{id: "tc_1", name: "calculator", arguments: %{operation: "add", a: 1, b: 2}}
+          ],
           usage: %{}
         }),
         runtime_event(:tool_completed, "req_ai_message", 3, %{
@@ -995,13 +1175,22 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
 
       {agent, []} =
         Enum.reduce(events, {agent, []}, fn event, {acc, _} ->
-          ReAct.cmd(acc, [instruction(:ai_react_worker_event, %{request_id: "req_ai_message", event: event})], %{})
+          ReAct.cmd(
+            acc,
+            [instruction(:ai_react_worker_event, %{request_id: "req_ai_message", event: event})],
+            %{}
+          )
         end)
 
       core_thread = ThreadAgent.get(agent)
       ai_messages = Thread.filter_by_kind(core_thread, :ai_message)
 
-      assert Enum.map(ai_messages, fn entry -> entry.payload.role end) == [:user, :assistant, :tool]
+      assert Enum.map(ai_messages, fn entry -> entry.payload.role end) == [
+               :user,
+               :assistant,
+               :tool
+             ]
+
       assert Enum.all?(ai_messages, fn entry -> entry.payload.context_ref == "default" end)
     end
 
@@ -1087,7 +1276,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
     end
 
     test "init ignores non-context :thread state from core thread plugins" do
-      agent = %Jido.Agent{id: "test-agent", name: "test", state: %{thread: %{id: "thread_1", rev: 2}}}
+      agent = %Jido.Agent{
+        id: "test-agent",
+        name: "test",
+        state: %{thread: %{id: "thread_1", rev: 2}}
+      }
 
       {agent, []} = ReAct.init(agent, %{strategy_opts: [tools: [TestCalculator]]})
       state = StratState.get(agent, %{})
@@ -1114,7 +1307,11 @@ defmodule Jido.AI.Reasoning.ReAct.StrategyTest do
       agent = StratState.put(agent, state)
 
       {_agent, directives} =
-        ReAct.cmd(agent, [instruction(ReAct.start_action(), %{query: "second", request_id: "req_new"})], %{})
+        ReAct.cmd(
+          agent,
+          [instruction(ReAct.start_action(), %{query: "second", request_id: "req_new"})],
+          %{}
+        )
 
       assert [%Directive.EmitRequestError{} = directive] = directives
       assert directive.request_id == "req_new"
