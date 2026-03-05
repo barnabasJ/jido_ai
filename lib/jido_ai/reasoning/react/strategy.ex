@@ -1316,11 +1316,23 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
     # Worker events are dispatched via async Tasks which can race,
     # so we use the seq number from the runner to restore correct order.
     expected_seq = Map.get(state, :expected_worker_seq, 1)
+    kind = event_kind(event)
+
+    # Terminal events (failed/completed/cancelled) bypass the buffer.
+    # When a stream fails mid-flight, earlier events will never arrive —
+    # buffering the terminal event would deadlock forever.
+    terminal? = kind in [:request_failed, :request_completed, :request_cancelled]
 
     cond do
       # No seq number — apply immediately (non-sequenced events)
       is_nil(event_seq) ->
         apply_worker_event(agent, state, event, request_id)
+
+      # Terminal events — apply immediately regardless of seq, then clear buffer
+      terminal? ->
+        {agent, state} = apply_worker_event_with_seq(agent, state, event, request_id, event_seq)
+        state = Map.delete(state, :worker_event_buffer)
+        {put_strategy_state(agent, state), []}
 
       # In order — apply this event and flush any buffered successors
       event_seq == expected_seq ->
@@ -1721,8 +1733,15 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
       |> Keyword.get(:llm_opts, config[:base_llm_opts] || [])
       |> normalize_llm_opts(provider_opt_keys_by_string)
 
+    # Extract :model from llm_opts to override at the top level.
+    # Passing :model inside llm_opts causes it to bleed into the HTTP request
+    # body as a raw provider-prefixed string (e.g. "zai_coding_plan:glm-4.7")
+    # instead of being resolved by ReqLLM.model() first.
+    {model_override, llm_opts} = Keyword.pop(llm_opts, :model)
+    effective_model = model_override || config[:model]
+
     runtime_opts = %{
-      model: config[:model],
+      model: effective_model,
       system_prompt: config[:system_prompt],
       tools: config[:actions_by_name] || %{},
       max_iterations: config[:max_iterations],
