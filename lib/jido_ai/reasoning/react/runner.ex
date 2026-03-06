@@ -14,7 +14,7 @@ defmodule Jido.AI.Reasoning.ReAct.Runner do
 
   require Logger
 
-  @receive_timeout 30_000
+  @receive_timeout 300_000
 
   @type stream_opt ::
           {:request_id, String.t()}
