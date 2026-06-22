@@ -368,7 +368,6 @@ defmodule Jido.AI.Reasoning.TRM.Strategy do
       :reasoning -> {:reasoning_result, call_id, result}
       :supervising -> {:supervision_result, call_id, result}
       :improving -> {:improvement_result, call_id, result}
-      _ -> {:reasoning_result, call_id, result}
     end
   end
 

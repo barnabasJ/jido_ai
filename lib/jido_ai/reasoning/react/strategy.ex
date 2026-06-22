@@ -1091,8 +1091,7 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
   defp project_context_from_entries(entries, context_ref, %AIContext{} = fallback_context)
        when is_list(entries) do
     {anchor_context, anchor_seq} =
-      Enum.reduce(entries, {fallback_context, -1}, fn entry,
-                                                      {current_context, current_anchor_seq} ->
+      Enum.reduce(entries, {fallback_context, -1}, fn entry, {current_context, current_anchor_seq} ->
         with :ai_context_operation <- fetch_map_value(entry, :kind),
              payload when is_map(payload) <- fetch_map_value(entry, :payload),
              ^context_ref <- fetch_map_value(payload, :context_ref),
@@ -1184,8 +1183,6 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
       _ -> @default_context_ref
     end
   end
-
-  defp initial_active_context_ref(_), do: @default_context_ref
 
   defp core_thread_last_seq(%Agent{} = agent) do
     agent
@@ -1812,9 +1809,7 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
   end
 
   defp worker_cancel_signal(request_id, reason) do
-    Jido.Signal.new!("ai.react.worker.cancel", %{request_id: request_id, reason: reason},
-      source: @source
-    )
+    Jido.Signal.new!("ai.react.worker.cancel", %{request_id: request_id, reason: reason}, source: @source)
   end
 
   defp react_worker_tag?(tag), do: tag == @worker_tag or tag == Atom.to_string(@worker_tag)
@@ -2011,10 +2006,8 @@ defmodule Jido.AI.Reasoning.ReAct.Strategy do
         ),
       agent_id: agent.id,
       base_tool_context: Map.get(agent.state, :tool_context) || tool_context_opt,
-      base_req_http_options:
-        opts |> Keyword.get(:req_http_options, []) |> normalize_req_http_options(),
-      base_llm_opts:
-        opts |> Keyword.get(:llm_opts, []) |> normalize_llm_opts(provider_opt_keys_by_string),
+      base_req_http_options: opts |> Keyword.get(:req_http_options, []) |> normalize_req_http_options(),
+      base_llm_opts: opts |> Keyword.get(:llm_opts, []) |> normalize_llm_opts(provider_opt_keys_by_string),
       provider_opt_keys_by_string: provider_opt_keys_by_string
     }
   end

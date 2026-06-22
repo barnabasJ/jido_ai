@@ -142,8 +142,10 @@ defmodule Jido.AI.Agent do
       {key, value} when not is_atom(key) or key not in [:__aliases__, :%, :%{}] ->
         {key, value}
 
-      # Reject function calls and other unsafe constructs
-      {func, meta, args} = node when is_atom(func) and is_list(args) ->
+      # Reject function calls and other unsafe constructs.
+      # `:@` is handled by the dedicated module-attribute clause below so it
+      # gets a clearer error message, so exclude it here.
+      {func, meta, args} = node when is_atom(func) and func != :@ and is_list(args) ->
         if func in [:__aliases__, :%, :%{}] do
           node
         else

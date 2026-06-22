@@ -391,6 +391,14 @@ defmodule Jido.AI.Reasoning.Adaptive.Strategy do
     }
   end
 
+  # Resolve a strategy type to its strategy module, always returning a real
+  # module. An unknown type (e.g. a manual override or a custom
+  # `available_strategies` entry not in `@strategy_modules`) falls back to the
+  # default `:react` strategy so callers never dispatch on `nil`.
+  defp resolve_strategy_module(strategy_type) do
+    Map.get(@strategy_modules, strategy_type) || Map.fetch!(@strategy_modules, @default_strategy)
+  end
+
   defp resolve_model_spec(model) when is_atom(model) do
     Jido.AI.resolve_model(model)
   end
@@ -426,7 +434,7 @@ defmodule Jido.AI.Reasoning.Adaptive.Strategy do
         {strategy_type, complexity_score, task_type} =
           select_strategy_for_task(prompt, state[:config])
 
-        strategy_module = Map.get(@strategy_modules, strategy_type)
+        strategy_module = resolve_strategy_module(strategy_type)
 
         # Initialize the selected strategy
         strategy_ctx = Map.put(ctx, :strategy_opts, state[:config].strategy_opts)
